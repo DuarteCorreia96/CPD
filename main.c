@@ -39,4 +39,5 @@ main(){
 
   init_particles(seed, ncside, n_part, par);
 
+  free(par);
 }
