@@ -17,8 +17,8 @@ typedef struct cell_blocks{
 
 } cell_t;
 
-void init_particles(long seed, long ncside, long long n_part, particle_t *par)
-{
+void init_particles(long seed, long ncside, long long n_part, particle_t *par){
+  
     long long i;
     srandom(seed);
 
