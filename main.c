@@ -7,7 +7,7 @@
 
 typedef struct particle {
 
-  double x, y, vx, vy, ax, ay, m;
+  double x, y, vx, vy, m;
 
 } particle_t;
 
@@ -57,7 +57,7 @@ main(int argc, char const *argv[]){
   long long n_part, i;
   
   long x, y;
-  double dx, dy, aux, d2;
+  double dx, dy, aux, d2, ax, ay;
 
   sscanf(argv[1], "%ld", &seed);
   sscanf(argv[2], "%ld", &ncside);
@@ -103,8 +103,8 @@ main(int argc, char const *argv[]){
       x = (long) (par[p].x * ncside) - 2;
       y = (long) (par[p].y * ncside) - 2;
 
-      par[p].ax = 0;
-      par[p].ay = 0;
+      ax = 0;
+      ay = 0;
       for (long i = 0; i < 3; i++){
 
         x = (x + 1) % ncside;
@@ -125,23 +125,23 @@ main(int argc, char const *argv[]){
             continue;
 
           aux = cell[x + ncside * y].m / d2 / (dx + dy);
-          par[p].ax += aux * dx;
-          par[p].ay += aux * dy;
+          ax += aux * dx;
+          ay += aux * dy;
         }
       }
 
-      par[p].ax *= G;
-      par[p].ay *= G;
+      ax *= G;
+      ay *= G;
 
       // Calculate the new velocity and then the new position of each particle
-      par[p].x += par[p].vx + par[p].ax / 2;
-      par[p].y += par[p].vy + par[p].ay / 2; 
+      par[p].x += par[p].vx + ax / 2;
+      par[p].y += par[p].vy + ay / 2; 
 
       par[p].x = check_limits(par[p].x);
       par[p].y = check_limits(par[p].y);
 
-      par[p].vx += par[p].ax;
-      par[p].vy += par[p].ay; 
+      par[p].vx += ax;
+      par[p].vy += ay; 
     }
   }
   
