@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <omp.h>
 
 #define RND0_1 ((double) random() / ((long long) 1 << 31))
 #define G 6.67408e-11
@@ -55,7 +54,7 @@ main(int argc, char const *argv[]){
   }
   
   long seed, ncside,  iterations;
-  long long n_part;
+  long long n_part, i;
   
   long x, y;
   double dx, dy, aux, d2;
@@ -68,38 +67,33 @@ main(int argc, char const *argv[]){
   particle_t *par = (particle_t *)malloc(sizeof(particle_t) * n_part);
   init_particles(seed, ncside, n_part, par);
 
-  cell_t **cell;
-  cell = (cell_t **) malloc (sizeof(cell_t *)  * ncside);
-  for(long i = 0; i < ncside; i++)
-    cell[i] = (cell_t *) malloc (sizeof(cell_t) * ncside);
+  cell_t *cell;
+  cell = (cell_t *) malloc (sizeof(cell_t)  * ncside * ncside);
 
   for(int k = 0; k < iterations; k++){
     
-    for (long i = 0; i < ncside; i++){
-      for (long j = 0; j < ncside; j++){
-        cell[i][j].x = 0;
-        cell[i][j].y = 0;
-        cell[i][j].m = 0;
-      }
+    for (i = 0; i < ncside * ncside; i++){
+      cell[i].x = 0;
+      cell[i].y = 0;
+      cell[i].m = 0;
     }
+    
   
     // Calculate the center of mass of each cell
-    for (long long i = 0; i < n_part; i++){
+    for (i = 0; i < n_part; i++){
       
       x = (long) (par[i].x * ncside);
       y = (long) (par[i].y * ncside);
       
-      cell[x][y].m += par[i].m;
-      cell[x][y].x += par[i].x * par[i].m; 
-      cell[x][y].y += par[i].y * par[i].m;  
+      cell[x + ncside * y].m += par[i].m;
+      cell[x + ncside * y].x += par[i].x * par[i].m;
+      cell[x + ncside * y].y += par[i].y * par[i].m;
     }
 
-    for (long i = 0; i < ncside; i++){
-      for (long j = 0; j < ncside; j++){
-        if(cell[i][j].m != 0){
-          cell[i][j].x /= cell[i][j].m;
-          cell[i][j].y /= cell[i][j].m;
-        }
+    for (i = 0; i < ncside * ncside; i++){
+      if(cell[i].m != 0){
+        cell[i].x /= cell[i].m;
+        cell[i].y /= cell[i].m;
       }
     }
 
@@ -123,14 +117,14 @@ main(int argc, char const *argv[]){
           if(y == -1)  
             y = ncside - 1;
 
-          dx = abs(par[p].x - cell[x][y].x);
-          dy = abs(par[p].y - cell[x][y].y);
+          dx = abs(par[p].x - cell[x + ncside * y].x);
+          dy = abs(par[p].y - cell[x + ncside * y].y);
 
           d2 = dx*dx + dy*dy;
           if(d2 < 0.1) 
             continue;
 
-          aux = cell[x][y].m / d2 / (dx + dy);
+          aux = cell[x + ncside * y].m / d2 / (dx + dy);
           par[p].ax += aux * dx;
           par[p].ay += aux * dy;
         }
@@ -138,11 +132,8 @@ main(int argc, char const *argv[]){
 
       par[p].ax *= G;
       par[p].ay *= G;
-    }
 
-    // Calculate the new velocity and then the new position of each particle
-    for (long long p = 0; p < n_part; p++){
-
+      // Calculate the new velocity and then the new position of each particle
       par[p].x += par[p].vx + par[p].ax / 2;
       par[p].y += par[p].vy + par[p].ay / 2; 
 
@@ -153,7 +144,7 @@ main(int argc, char const *argv[]){
       par[p].vy += par[p].ay; 
     }
   }
-
+  
   printf("%.2f %.2f \n", par[0].x, par[0].y);
   double x_total = 0, y_total = 0, m_total = 0;
   for (long long i = 0; i < n_part; i++){
@@ -169,8 +160,6 @@ main(int argc, char const *argv[]){
   printf("%.2f %.2f \n", x_total / m_total, y_total / m_total);
 
   free(par);
-  for (long i = 0; i < ncside; i++)
-    free(cell[i]);
   free(cell);
   return 0;
 }
