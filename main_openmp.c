@@ -57,7 +57,7 @@ main(int argc, char const *argv[]){
   long seed, ncside,  iterations;
   long long n_part;
   
-  long x, y;
+  long x, y, i, j;
   double dx, dy, aux, d2;
 
   sscanf(argv[1], "%ld", &seed);
@@ -70,11 +70,12 @@ main(int argc, char const *argv[]){
 
   cell_t **cell;
   cell = (cell_t **) malloc (sizeof(cell_t *)  * ncside);
-  for(long i = 0; i < ncside; i++)
+  for(long i = 0; i < ncside; i++)x
     cell[i] = (cell_t *) malloc (sizeof(cell_t) * ncside);
 
   for(int k = 0; k < iterations; k++){
-    
+
+    #pragma omp parallel for
     for (long i = 0; i < ncside; i++){
       for (long j = 0; j < ncside; j++){
         cell[i][j].x = 0;
@@ -84,6 +85,7 @@ main(int argc, char const *argv[]){
     }
   
     // Calculate the center of mass of each cell
+    #pragma omp parallel for private(x, y) reduction(+:cell[:ncside])
     for (long long i = 0; i < n_part; i++){
       
       x = (long) (par[i].x * ncside);
@@ -93,7 +95,7 @@ main(int argc, char const *argv[]){
       cell[x][y].x += par[i].x * par[i].m; 
       cell[x][y].y += par[i].y * par[i].m;  
     }
-
+    
     for (long i = 0; i < ncside; i++){
       for (long j = 0; j < ncside; j++){
         if(cell[i][j].m != 0){
@@ -141,6 +143,7 @@ main(int argc, char const *argv[]){
     }
 
     // Calculate the new velocity and then the new position of each particle
+    #pragma omp parallel for
     for (long long p = 0; p < n_part; p++){
 
       par[p].x += par[p].vx + par[p].ax / 2;
@@ -151,7 +154,7 @@ main(int argc, char const *argv[]){
 
       par[p].vx += par[p].ax;
       par[p].vy += par[p].ay; 
-    }
+    } 
   }
 
   printf("%.2f %.2f \n", par[0].x, par[0].y);
