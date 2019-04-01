@@ -1,22 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
 #include <omp.h>
 
 #define RND0_1 ((double) random() / ((long long) 1 << 31))
 #define G 6.67408e-11
-#define EPSLON 0.01
+#define EPSLON 0.0005
 
 typedef struct particle {
 
   double x, y, vx, vy, m;
 
 } particle_t;
-
-typedef struct cell_blocks{
-
-  double x, y, m;
-
-} cell_t;
 
 void init_particles(long seed, long ncside, long long n_part, particle_t *par){
   
@@ -54,9 +50,8 @@ main(int argc, char const *argv[]){
     return 0;
   }
 
-  int nt, tid;
   long x, y;
-  long seed, ncside,  iterations;
+  long seed, ncside, iterations;
   long long n_part, i, j, k, p, pos, counter;
   double dx, dy, aux, d2, ax, ay;
 
@@ -65,112 +60,94 @@ main(int argc, char const *argv[]){
   sscanf(argv[4], "%ld", &iterations);
   sscanf(argv[3], "%lld", &n_part);
 
+  const long long cell_size = ncside * ncside;
+  const double epson_sqrt = sqrt(EPSLON);
+
   particle_t *par = (particle_t *)malloc(sizeof(particle_t) * n_part);
   init_particles(seed, ncside, n_part, par);
 
-  cell_t *cell;
-  cell = (cell_t *) malloc (sizeof(cell_t) * ncside * ncside);
+  double *cell_x, *cell_y, *cell_m;
+  cell_x = (double *)malloc(sizeof(double) * cell_size);
+  cell_y = (double *)malloc(sizeof(double) * cell_size);
+  cell_m = (double *)malloc(sizeof(double) * cell_size);
 
   for(k = 0; k < iterations; k++){
 
-    #pragma omp parallel for
-    for (i = 0; i < ncside * ncside; i++){
-      cell[i].x = 0;
-      cell[i].y = 0;
-      cell[i].m = 0;
-    }
-  
+    memset(cell_x, 0, sizeof(double)* cell_size);
+    memset(cell_y, 0, sizeof(double) * cell_size);
+    memset(cell_m, 0, sizeof(double) * cell_size);
+
     // Calculate the center of mass of each cell
-    #pragma omp parallel \
-      default(none) \
-      shared (nt, cell, ncside, n_part, par) \
-      private(x, y, p, tid, pos, counter)
-    {
-      nt = omp_get_num_threads();
-      tid = omp_get_thread_num();
-      for (counter = 0; counter < n_part; counter += nt){
+    #pragma omp parallel for private(x, y, pos) \
+    reduction(+:cell_x[:cell_size], cell_y[:cell_size], cell_m[:cell_size])
+    for (p= 0; p < n_part; p++){
 
-        p = counter + tid;
-        if (p >= n_part)
-          continue;
+      x = (long)(par[p].x * ncside);
+      y = (long)(par[p].y * ncside);
+      pos = x + ncside * y;
 
-        x = (long)(par[p].x * ncside);
-        y = (long)(par[p].y * ncside);
-        pos = x + ncside * y;
-
-        cell[pos].m += par[p].m;
-        cell[pos].x += par[p].x * par[p].m;
-        cell[pos].y += par[p].y * par[p].m;
-      }
+      cell_m[pos] += par[p].m;
+      cell_x[pos] += par[p].x * par[p].m;
+      cell_y[pos] += par[p].y * par[p].m;
     }
 
-    #pragma omp parallel for 
-    for (i = 0; i < ncside * ncside; i++){
-      if(cell[i].m != 0){
-        cell[i].x /= cell[i].m;
-        cell[i].y /= cell[i].m;
+    #pragma omp parallel for
+    for (i = 0; i < cell_size; i++){
+      if(cell_m[i] != 0){
+        cell_y[i] /= cell_m[i];
+        cell_x[i] /= cell_m[i];
       }
     }
 
     // Compute the gravitational force applied to each particle
-    #pragma omp parallel  \
-      default(none) \
-      shared (nt, par, n_part, ncside, cell) \
-      private(i, j, p, counter, tid, pos, aux, d2, x, y, ax, ay , dx, dy)
-    {
-      nt = omp_get_num_threads();
-      tid = omp_get_thread_num();
-      for (counter = 0; counter < n_part; counter += nt){
-        
-        p = counter + tid;
-        if(p >= n_part)
-          continue;
+    #pragma omp parallel for private(i, j, p, pos, aux, d2, x, y, ax, ay , dx, dy)
+    for (p = 0; p < n_part; p ++){
 
-        x = (long) (par[p].x * ncside) - 2;
-        y = (long) (par[p].y * ncside) - 2;
+      x = (long) (par[p].x * ncside) - 2;
+      y = (long) (par[p].y * ncside) - 2;
 
-        ax = 0;
-        ay = 0;
-        for (i = 0; i < 3; i++){
+      ax = 0;
+      ay = 0;
+      for (i = 0; i < 3; i++){
 
-          x = (x + 1) % ncside;
-          if(x == -1)  
-            x = ncside - 1; 
+        x = (x + 1) % ncside;
+        if(x == -1)  
+          x = ncside - 1; 
 
-          for (j = 0; j < 3; j++){
+        for (j = 0; j < 3; j++){
 
-            y = (y + 1) % ncside;
-            if(y == -1)  
-              y = ncside - 1;
+          y = (y + 1) % ncside;
+          if(y == -1)  
+            y = ncside - 1;
 
-            pos = x + ncside * y;
-            dx = abs(par[p].x - cell[pos].x);
-            dy = abs(par[p].y - cell[pos].y);
+          pos = x + ncside * y;
+          dx = abs(par[p].x - cell_x[pos]);
+          dy = abs(par[p].y - cell_y[pos]);
 
-            d2 = dx*dx + dy*dy;
-            if(d2 < 0.1) 
-              continue;
+          d2 = dx*dx + dy*dy;
+          if(d2 < epson_sqrt) 
+            continue;
 
-            aux = cell[pos].m / d2 / (dx + dy);
-            ax += aux * dx;
-            ay += aux * dy;
-          }
+          aux = cell_m[pos] / d2 / (dx + dy);
+          ax += aux * dx;
+          ay += aux * dy;
         }
-
-        ax *= G;
-        ay *= G;
-
-        // Calculate the new velocity and then the new position of each particle
-        par[p].x += par[p].vx + ax / 2;
-        par[p].y += par[p].vy + ay / 2;
-
-        par[p].x = check_limits(par[p].x);
-        par[p].y = check_limits(par[p].y);
-
-        par[p].vx += ax;
-        par[p].vy += ay;
       }
+
+      ax *= G;
+      ay *= G;
+
+      // Calculate the new velocity and then the new position of each particle
+      par[p].x += par[p].vx + ax / 2;
+      par[p].y += par[p].vy + ay / 2;
+
+      par[p].x = check_limits(par[p].x);
+      par[p].y = check_limits(par[p].y);
+
+      par[p].vx += ax;
+      par[p].vy += ay;
     }
+  
   }
 
   printf("%.2f %.2f \n", par[0].x, par[0].y);
@@ -186,6 +163,8 @@ main(int argc, char const *argv[]){
   printf("%.2f %.2f \n", x_total / m_total, y_total / m_total);
 
   free(par);
-  free(cell);
+  free(cell_x);
+  free(cell_y);
+  free(cell_m);
   return 0;
 }

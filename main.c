@@ -1,21 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
 
 #define RND0_1 ((double) random() / ((long long) 1 << 31))
 #define G 6.67408e-11
-#define EPSLON 0.01
+#define EPSLON 0.0005
 
 typedef struct particle {
 
   double x, y, vx, vy, m;
 
 } particle_t;
-
-typedef struct cell_blocks{
-
-  double x, y, m;
-
-} cell_t;
 
 void init_particles(long seed, long ncside, long long n_part, particle_t *par){
   
@@ -54,7 +50,7 @@ main(int argc, char const *argv[]){
   }
   
   long seed, ncside,  iterations;
-  long long n_part, i;
+  long long n_part, pos;
   
   long x, y;
   double dx, dy, aux, d2, ax, ay;
@@ -64,36 +60,39 @@ main(int argc, char const *argv[]){
   sscanf(argv[4], "%ld", &iterations);
   sscanf(argv[3], "%lld", &n_part);
 
+  const double epson_sqrt = sqrt(EPSLON);
+  const long long cell_size = ncside * ncside;
+
   particle_t *par = (particle_t *)malloc(sizeof(particle_t) * n_part);
   init_particles(seed, ncside, n_part, par);
 
-  cell_t *cell;
-  cell = (cell_t *) malloc (sizeof(cell_t)  * ncside * ncside);
+  double *cell_x, *cell_y, *cell_m;
+  cell_x = (double *)malloc(sizeof(double) * cell_size);
+  cell_y = (double *)malloc(sizeof(double) * cell_size);
+  cell_m = (double *)malloc(sizeof(double) * cell_size);
 
   for(int k = 0; k < iterations; k++){
-    
-    for (i = 0; i < ncside * ncside; i++){
-      cell[i].x = 0;
-      cell[i].y = 0;
-      cell[i].m = 0;
-    }
-    
-  
+
+    memset(cell_x, 0, sizeof(double) * cell_size);
+    memset(cell_y, 0, sizeof(double) * cell_size);
+    memset(cell_m, 0, sizeof(double) * cell_size);
+
     // Calculate the center of mass of each cell
-    for (i = 0; i < n_part; i++){
+    for (long long p = 0; p < n_part; p++){
       
-      x = (long) (par[i].x * ncside);
-      y = (long) (par[i].y * ncside);
-      
-      cell[x + ncside * y].m += par[i].m;
-      cell[x + ncside * y].x += par[i].x * par[i].m;
-      cell[x + ncside * y].y += par[i].y * par[i].m;
+      x = (long) (par[p].x * ncside);
+      y = (long) (par[p].y * ncside);
+      pos = x + ncside * y;
+
+      cell_m[pos] += par[p].m;
+      cell_x[pos] += par[p].x * par[p].m;
+      cell_y[pos] += par[p].y * par[p].m;
     }
 
-    for (i = 0; i < ncside * ncside; i++){
-      if(cell[i].m != 0){
-        cell[i].x /= cell[i].m;
-        cell[i].y /= cell[i].m;
+    for (long long i = 0; i < cell_size; i++){
+      if(cell_m[i] != 0){
+        cell_y[i] /= cell_m[i];
+        cell_x[i] /= cell_m[i];
       }
     }
 
@@ -117,14 +116,15 @@ main(int argc, char const *argv[]){
           if(y == -1)  
             y = ncside - 1;
 
-          dx = abs(par[p].x - cell[x + ncside * y].x);
-          dy = abs(par[p].y - cell[x + ncside * y].y);
+          pos = x + ncside * y;
+          dx = abs(par[p].x - cell_x[pos]);
+          dy = abs(par[p].y - cell_y[pos]);
 
           d2 = dx*dx + dy*dy;
-          if(d2 < 0.1) 
+          if(d2 < epson_sqrt) 
             continue;
 
-          aux = cell[x + ncside * y].m / d2 / (dx + dy);
+          aux = cell_m[pos] / d2 / (dx + dy);
           ax += aux * dx;
           ay += aux * dy;
         }
@@ -160,6 +160,8 @@ main(int argc, char const *argv[]){
   printf("%.2f %.2f \n", x_total / m_total, y_total / m_total);
 
   free(par);
-  free(cell);
+  free(cell_x);
+  free(cell_y);
+  free(cell_m);
   return 0;
 }
