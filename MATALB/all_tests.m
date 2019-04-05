@@ -17,10 +17,6 @@ for n = 1:7
 end
 
 figure(1)
-plot(tests(4).threads , tests(4).real)
-hold on
-
-figure(1)
 legend(...
     "1 3   1000000     20",...
     "1 10 2000000     10", ...
