@@ -71,6 +71,7 @@ main(int argc, char const *argv[]){
   cell_y = (double *)malloc(sizeof(double) * cell_size);
   cell_m = (double *)malloc(sizeof(double) * cell_size);
 
+  double startTime = omp_get_wtime();
   for(k = 0; k < iterations; k++){
 
     memset(cell_x, 0, sizeof(double)* cell_size);
@@ -161,6 +162,12 @@ main(int argc, char const *argv[]){
   }
 
   printf("%.2f %.2f \n", x_total / m_total, y_total / m_total);
+
+  /*
+    double stopTime = omp_get_wtime();
+    double secsElapsed = stopTime - startTime;
+    printf("    %.15lg   \n\n", secsElapsed);
+  */
 
   free(par);
   free(cell_x);
