@@ -101,7 +101,6 @@ main(int argc, char *argv[]){
 
     MPI_Barrier(MPI_COMM_WORLD);
     double t_start = MPI_Wtime();
-    
     for(int k = 0; k < iterations; k++){
 
         memset(cell_x, 0, sizeof(double) * cell_size);

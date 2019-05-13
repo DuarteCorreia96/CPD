@@ -18,11 +18,10 @@ typedef struct particle {
 void init_particles(long seed, long ncside, long long n_part, particle_t *par, int rank){
 
     long long i;
-    double trash;
     srandom(seed);
 
     for(i = 0; i < rank * n_part; i++)
-        trash = random();
+        random();
 
     for(i = 0; i < n_part; i++){
 
@@ -57,7 +56,7 @@ main(int argc, char *argv[]){
 
     long x, y;
     long seed, ncside, iterations;
-    long long n_part, i, j, k, p, pos, counter;
+    long long n_part, i, j, k, p, pos;
     double dx, dy, aux, d2, ax, ay;
 
     int id, nnodes;
@@ -79,8 +78,9 @@ main(int argc, char *argv[]){
 
     //Divide the particles along the processes
     block_size = n_part / nnodes;
-    if(!id){
-        block_size += n_part % nnodes;
+    for(int i = 0; i < n_part % nnodes; i++){
+        if(id == i)
+            block_size++;
     }
     n_part = block_size;
 
