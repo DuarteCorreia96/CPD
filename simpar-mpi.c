@@ -8,7 +8,6 @@
 #define G 6.67408e-11
 #define EPSLON 0.0005
 
-
 typedef struct particle {
 
     double x, y, vx, vy, m;
@@ -80,8 +79,9 @@ main(int argc, char *argv[]){
 
     //Divide the particles along the processes
     block_size = n_part / p;
-    if(!id)
+    if(!id){
         block_size += n_part % p;
+    }
 
     //printf("Id: %d \t block_size: %lld \t \n", id, block_size);    
 
@@ -99,6 +99,9 @@ main(int argc, char *argv[]){
     cell_x_Global = (double *)malloc(sizeof(double) * cell_size);
     cell_y_Global = (double *)malloc(sizeof(double) * cell_size);
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t_start = MPI_Wtime();
+    
     for(int k = 0; k < iterations; k++){
 
         memset(cell_x, 0, sizeof(double) * cell_size);
@@ -201,6 +204,13 @@ main(int argc, char *argv[]){
     if(!id){
         printf("%.2f %.2f \n", par[0].x, par[0].y);
         printf("%.2f %.2f \n", x_total_Global / m_total_Global, y_total_Global / m_total_Global);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t_end = MPI_Wtime();
+
+    if (!id){
+        printf("Time elapsed with MPI clock = %f\n", t_end - t_start);
     }
 
     free(par);
