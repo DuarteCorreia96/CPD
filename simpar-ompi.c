@@ -15,15 +15,28 @@ typedef struct particle {
 
 } particle_t;
 
-void init_particles(long seed, long ncside, long long n_part, particle_t *par, int rank){
+void init_particles(long seed, long ncside, long long n_part, particle_t *par, int nnodes, int rank){
 
-    long long i;
+    long long i, j;
     srandom(seed);
 
-    for(i = 0; i < rank * n_part; i++)
-        random();
+    long long n_part_id = n_part / nnodes;
+    long long rest = n_part % nnodes;
 
-    for(i = 0; i < n_part; i++){
+    for(i = 0; i < rest && i < rank; i++){
+        for (j = 0; j < (n_part_id + 1) * 5; j++)
+            random();
+    }
+
+    for(i = rest; i < rank; i++){
+        for (j = 0; j < n_part_id * 5; j++)
+            random();
+    }
+
+    if(rank < rest)
+        n_part_id++;
+
+    for(i = 0; i < n_part_id; i++){
 
         par[i].x = RND0_1;
         par[i].y = RND0_1;
@@ -60,7 +73,6 @@ main(int argc, char *argv[]){
     double dx, dy, aux, d2, ax, ay;
 
     int id, nnodes;
-    long long block_size;
 
     MPI_Init(&argc, &argv);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -77,15 +89,14 @@ main(int argc, char *argv[]){
     const double epson_sqrt = sqrt(EPSLON);
 
     //Divide the particles along the processes
-    block_size = n_part / nnodes;
-    for(int i = 0; i < n_part % nnodes; i++){
-        if(id == i)
-            block_size++;
-    }
-    n_part = block_size;
+    long long n_part_id = n_part / nnodes;
+    if(id < n_part % nnodes)
+        n_part_id++;
 
-    particle_t *par = (particle_t *)malloc(sizeof(particle_t) * n_part);
-    init_particles(seed, ncside, n_part, par, id);
+    particle_t *par = (particle_t *)malloc(sizeof(particle_t) * n_part_id);
+    init_particles(seed, ncside, n_part, par, nnodes, id);
+
+    n_part = n_part_id;
 
     double *cell_xL, *cell_yL, *cell_mL;
     cell_xL = (double *)malloc(sizeof(double) * cell_size);
@@ -198,11 +209,12 @@ main(int argc, char *argv[]){
         y_total += par[i].y * par[i].m;  
     }
 
+   
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Reduce(&m_total, &m_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&x_total, &x_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&y_total, &y_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-
+    
     if(!id){
         printf("%.2f %.2f \n", par[0].x, par[0].y);
         printf("%.2f %.2f \n", x_total_Global / m_total_Global, y_total_Global / m_total_Global);
