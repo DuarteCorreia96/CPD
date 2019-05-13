@@ -11,7 +11,7 @@
 
 typedef struct particle {
 
-  double x, y, vx, vy, m;
+    double x, y, vx, vy, m;
 
 } particle_t;
 
@@ -20,8 +20,8 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par){
     long long i;
     srandom(seed);
 
-    for(i = 0; i < n_part; i++)
-    {
+    for(i = 0; i < n_part; i++){
+
         par[i].x = RND0_1;
         par[i].y = RND0_1;
         par[i].vx = RND0_1 / ncside / 10.0;
@@ -29,218 +29,216 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par){
 
         par[i].m = RND0_1 * ncside / (G * 1e6 * n_part);
     }
-                                                                                                                            1,1           To
 }
 
 double
 check_limits(double position){
 
-  if(position < 0)
-    position += 1;
+    if(position < 0)
+        position += 1;
 
-  else if(position > 1)
-    position -= 1;
+    else if(position > 1)
+        position -= 1;
 
-  return position;
+    return position;
 }
 
 int
 main(int argc, char *argv[]){
 printf("0 \n");
 
-  if(argc != 5){
-    printf("Wrong parameters");
-    return 0;
-  }
+    if(argc != 5){
+        printf("Wrong parameters");
+        return 0;
+    }
 
-  long seed, ncside,  iterations;
-  long long n_part, pos;
+    long seed, ncside,  iterations;
+    long long n_part, pos;
 
-  long x, y;
-  double dx, dy, aux, d2, ax, ay;
+    long x, y;
+    double dx, dy, aux, d2, ax, ay;
 
-  int id, p;
-                                                                                                                            61,1          14%
-  int low_value, high_value, block_size, rest_size;
+    int id, p;
+    int low_value, high_value, block_size, rest_size;
 
-  MPI_Init(&argc, &argv);
-  MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Init(&argc, &argv);
+    MPI_Barrier(MPI_COMM_WORLD);
 
-  MPI_Comm_rank(MPI_COMM_WORLD, &id);
-  MPI_Comm_size(MPI_COMM_WORLD, &p);
+    MPI_Comm_rank(MPI_COMM_WORLD, &id);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
 
-  sscanf(argv[1], "%ld", &seed);
-  sscanf(argv[2], "%ld", &ncside);
-  sscanf(argv[4], "%ld", &iterations);
-  sscanf(argv[3], "%lld", &n_part);
+    sscanf(argv[1], "%ld", &seed);
+    sscanf(argv[2], "%ld", &ncside);
+    sscanf(argv[4], "%ld", &iterations);
+    sscanf(argv[3], "%lld", &n_part);
 
-  const double epson_sqrt = sqrt(EPSLON);
-  const long long cell_size = ncside * ncside;
+    const double epson_sqrt = sqrt(EPSLON);
+    const long long cell_size = ncside * ncside;
 
-  //Divide the particles along the processes
+    //Divide the particles along the processes
+    rest_size = n_part%p;
 
-  rest_size = n_part%p;
+    if(id<rest_size){
 
-  if(id<rest_size){
         block_size = (n_part/p)+1;
         low_value = id*block_size;
         high_value = low_value+block_size;
-  } else{
+    } else{
+
         block_size = n_part/p;
         low_value = id*block_size + rest_size;
         high_value = low_value+block_size;
-  }
-
-  //Creates the particles for each proccess only
-                                                                                                                            92,1          29%
-  particle_t *par = (particle_t *)malloc(sizeof(particle_t) * block_size);
-  init_particles(seed, ncside, block_size, par);
-
-  double *cell_x, *cell_y, *cell_m;
-  cell_x = (double *)malloc(sizeof(double) * cell_size);
-  cell_y = (double *)malloc(sizeof(double) * cell_size);
-  cell_m = (double *)malloc(sizeof(double) * cell_size);
-
-  double *cell_x_Global, *cell_y_Global, *cell_m_Global;
-
-  cell_m_Global = (double *)malloc(sizeof(double) * cell_size);
-  cell_x_Global = (double *)malloc(sizeof(double) * cell_size);
-  cell_y_Global = (double *)malloc(sizeof(double) * cell_size);
-
-  for(int k = 0; k < iterations; k++){
-
-    memset(cell_x, 0, sizeof(double) * cell_size);
-    memset(cell_y, 0, sizeof(double) * cell_size);
-    memset(cell_m, 0, sizeof(double) * cell_size);
-
-    // Calculate the center of mass of each cell
-    // each proccess calculates is particles
-    for (long long p = 0; p <block_size ; p++){
-
-      x = (long) (par[p].x * ncside);
-      y = (long) (par[p].y * ncside);
-      pos = x + ncside * y;
-
-      cell_m[pos] += par[p].m;
-      cell_x[pos] += par[p].x * par[p].m;
-      cell_y[pos] += par[p].y * par[p].m;
-                                                                                                                            123,1         44%
     }
 
-printf("1 \n");
+    //Creates the particles for each proccess only
+    particle_t *par = (particle_t *)malloc(sizeof(particle_t) * block_size);
+    init_particles(seed, ncside, block_size, par);
 
-   MPI_Barrier(MPI_COMM_WORLD);
-   MPI_Allreduce(cell_m, cell_m_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(cell_x, cell_x_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(cell_y, cell_y_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-printf("2 cell size é: %lld \n", cell_size);
+    double *cell_x, *cell_y, *cell_m;
+    cell_x = (double *)malloc(sizeof(double) * cell_size);
+    cell_y = (double *)malloc(sizeof(double) * cell_size);
+    cell_m = (double *)malloc(sizeof(double) * cell_size);
 
- //MPI_Barrier(MPI_COMM_WORLD);
-for(int i =0; i<cell_size; i++)
-printf("indice i %i \ncell_m_Global: %f vs Cell_m  %f  \ncell_x_Global: %f vs cell_x \f \ncell_y_global: %f vs cell_y %f \n",i, cell_m_Global[i], cell_m[i], cell_x_Global[i], cell_x[i], cell_y_Global[i], cell_y[i]);
+    double *cell_x_Global, *cell_y_Global, *cell_m_Global;
 
-    for (long long i = 0; i < cell_size; i++){
-      if(cell_m_Global[i] != 0){
-        cell_y_Global[i] /= cell_m_Global[i];
-        cell_x_Global[i] /= cell_m_Global[i];
-      }
-    }
-printf("3 \n");
+    cell_m_Global = (double *)malloc(sizeof(double) * cell_size);
+    cell_x_Global = (double *)malloc(sizeof(double) * cell_size);
+    cell_y_Global = (double *)malloc(sizeof(double) * cell_size);
 
-    // Compute the gravitational force applied to each particle
-    for (long long p = 0; p < block_size; p++){
+    for(int k = 0; k < iterations; k++){
 
-      x = (long) (par[p].x * ncside) - 2;
-      y = (long) (par[p].y * ncside) - 2;
+        memset(cell_x, 0, sizeof(double) * cell_size);
+        memset(cell_y, 0, sizeof(double) * cell_size);
+        memset(cell_m, 0, sizeof(double) * cell_size);
 
-      ax = 0;
-      ay = 0;
-                                                                                                                            153,1         59%
-      for (long i = 0; i < 3; i++){
+        // Calculate the center of mass of each cell
+        // each proccess calculates is particles
+        for (long long p = 0; p <block_size ; p++){
 
-        x = (x + 1) % ncside;
-        if(x == -1)
-          x = ncside - 1;
+        x = (long) (par[p].x * ncside);
+        y = (long) (par[p].y * ncside);
+        pos = x + ncside * y;
 
-        for (long j = 0; j < 3; j++){
-
-          y = (y + 1) % ncside;
-          if(y == -1)
-            y = ncside - 1;
-
-          pos = x + ncside * y;
-          dx = abs(par[p].x - cell_x_Global[pos]);
-          dy = abs(par[p].y - cell_y_Global[pos]);
-
-          d2 = dx*dx + dy*dy;
-          if(d2 < epson_sqrt)
-            continue;
-
-          aux = cell_m_Global[pos] / d2 / (dx + dy);
-          ax += aux * dx;
-          ay += aux * dy;
+        cell_m[pos] += par[p].m;
+        cell_x[pos] += par[p].x * par[p].m;
+        cell_y[pos] += par[p].y * par[p].m;
         }
-      }
-printf("4 \n");
 
-      ax *= G;
-      ay *= G;
+        printf("1 \n");
 
-      // Calculate the new velocity and then the new position of each particle
-                                                                                                                            184,1         73%
-      par[p].x += par[p].vx + ax / 2;
-      par[p].y += par[p].vy + ay / 2;
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Allreduce(cell_m, cell_m_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(cell_x, cell_x_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(cell_y, cell_y_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        printf("2 cell size é: %lld \n", cell_size);
 
-      par[p].x = check_limits(par[p].x);
-      par[p].y = check_limits(par[p].y);
+        //MPI_Barrier(MPI_COMM_WORLD);
+        for(int i =0; i<cell_size; i++){
+            printf("indice i %i \ncell_m_Global: %f vs Cell_m  %f  \ncell_x_Global: %f vs cell_x \f \ncell_y_global: %f vs cell_y %f \n",
+                i, cell_m_Global[i], cell_m[i], cell_x_Global[i], cell_x[i], cell_y_Global[i], cell_y[i]);
+        }
 
-      par[p].vx += ax;
-      par[p].vy += ay;
+        for (long long i = 0; i < cell_size; i++){
+            if(cell_m_Global[i] != 0){
+                cell_y_Global[i] /= cell_m_Global[i];
+                cell_x_Global[i] /= cell_m_Global[i];
+            }
+        }
+        printf("3 \n");
+
+        // Compute the gravitational force applied to each particle
+        for (long long p = 0; p < block_size; p++){
+
+            x = (long) (par[p].x * ncside) - 2;
+            y = (long) (par[p].y * ncside) - 2;
+
+            ax = 0;
+            ay = 0;
+            for (long i = 0; i < 3; i++){
+
+                x = (x + 1) % ncside;
+                if(x == -1)
+                x = ncside - 1;
+
+                for (long j = 0; j < 3; j++){
+
+                    y = (y + 1) % ncside;
+                    if(y == -1)
+                        y = ncside - 1;
+
+                    pos = x + ncside * y;
+                    dx = abs(par[p].x - cell_x_Global[pos]);
+                    dy = abs(par[p].y - cell_y_Global[pos]);
+
+                    d2 = dx*dx + dy*dy;
+                    if(d2 < epson_sqrt)
+                        continue;
+
+                    aux = cell_m_Global[pos] / d2 / (dx + dy);
+                    ax += aux * dx;
+                    ay += aux * dy;
+                }
+        }
+
+        printf("4 \n");
+
+        ax *= G;
+        ay *= G;
+
+        // Calculate the new velocity and then the new position of each particle
+        par[p].x += par[p].vx + ax / 2;
+        par[p].y += par[p].vy + ay / 2;
+
+        par[p].x = check_limits(par[p].x);
+        par[p].y = check_limits(par[p].y);
+
+        par[p].vx += ax;
+        par[p].vy += ay;
+        }
     }
-  }
 
-printf("5 \n");
+    printf("5 \n");
 
-  printf("%.2f %.2f \n", par[0].x, par[0].y);
-  double x_total = 0, y_total = 0, m_total = 0;
+    printf("%.2f %.2f \n", par[0].x, par[0].y);
+    double x_total = 0, y_total = 0, m_total = 0;
 
-  double x_total_Global = 0, y_total_Global = 0, m_total_Global = 0;
-
-
-  for (long long i = 0; i < block_size; i++){
-
-    x = (long) (par[i].x * ncside);
-    y = (long) (par[i].y * ncside);
-
-    m_total += par[i].m;
-    x_total += par[i].x * par[i].m;
-    y_total += par[i].y * par[i].m;
-  }
-
-  MPI_Barrier(MPI_COMM_WORLD);
-  MPI_Reduce(&m_total, &m_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0,MPI_COMM_WORLD);
-                                                                                                                            215,1         88%
-MPI_Reduce(&x_total, &x_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0,MPI_COMM_WORLD);
-  MPI_Reduce(&y_total, &y_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0,MPI_COMM_WORLD);
+    double x_total_Global = 0, y_total_Global = 0, m_total_Global = 0;
 
 
-  if(!id){
-        printf("Id do processo: %d numero de processos: %d\nlow_value: %d high value %d e size %d e resto: %d\n", id, p, low_value, high_value, block_size,rest_size );
-        printf("%.2f %.2f \n", x_total_Global / m_total_Global, y_total_Global / m_total_Global);
-  } else {
-        printf("Id do processo: %d numero de processos: %d\nlow_value: %d high value %d e size %d e resto: %d\n", id, p, low_value, high_value, block_size,rest_size );
+    for (long long i = 0; i < block_size; i++){
 
-  }
+        x = (long) (par[i].x * ncside);
+        y = (long) (par[i].y * ncside);
 
-  free(par);
-  free(cell_x);
-  free(cell_y);
-  free(cell_m);
-  free(cell_m_Global);
-  free(cell_y_Global);
-  free(cell_x_Global);
+        m_total += par[i].m;
+        x_total += par[i].x * par[i].m;
+        y_total += par[i].y * par[i].m;
+    }
 
-  MPI_Finalize();
-  return 0;
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Reduce(&m_total, &m_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0,MPI_COMM_WORLD);
+    MPI_Reduce(&x_total, &x_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0,MPI_COMM_WORLD);
+    MPI_Reduce(&y_total, &y_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0,MPI_COMM_WORLD);
+
+
+    if(!id){
+            printf("Id do processo: %d numero de processos: %d\nlow_value: %d high value %d e size %d e resto: %d\n", 
+                    id, p, low_value, high_value, block_size,rest_size );
+            printf("%.2f %.2f \n", x_total_Global / m_total_Global, y_total_Global / m_total_Global);
+    } else {
+            printf("Id do processo: %d numero de processos: %d\nlow_value: %d high value %d e size %d e resto: %d\n", 
+                    id, p, low_value, high_value, block_size,rest_size );
+    }
+
+    free(par);
+    free(cell_x);
+    free(cell_y);
+    free(cell_m);
+    free(cell_m_Global);
+    free(cell_y_Global);
+    free(cell_x_Global);
+
+    MPI_Finalize();
+    return 0;
 }
 
