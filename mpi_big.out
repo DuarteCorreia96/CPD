@@ -1,0 +1,6 @@
+0.70 0.81 
+0.50 0.50 
+Time elapsed with MPI clock = 23.168092
+
+for this:
+2 20 2000000000 5
