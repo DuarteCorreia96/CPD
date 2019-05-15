@@ -206,7 +206,6 @@ main(int argc, char *argv[]){
         y_total += par[i].y * par[i].m;  
     }
 
-   
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Reduce(&m_total, &m_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&x_total, &x_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
