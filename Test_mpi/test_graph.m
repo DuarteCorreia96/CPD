@@ -241,24 +241,36 @@ cell =  [10 20 30 40 50 60 70 90 100 250 500 1000];
 time_cell = [1.037982  0.947220 1.001730 1.144673 1.148975 1.142921 ...
     1.160260 1.307613 1.261375 2.277810 6.566298 29.842344];
 
+time_cell2 = [1.900058 1.877507 1.872214 2.022528 1.947028 1.935300 ...
+    1.971853 1.977348 2.018427 3.218761 7.329504 28.701657];
+
 figure(1)
 ax3 = subplot(2,2,3);
 plot(cell, time_cell)
+hold on
+
+plot(cell, time_cell2)
 hold on
 
 grid minor
 title('Execution Time ./simpar-mpi 2 ncell 100000000 5','Interpreter', 'Latex');
 ylabel('Execution Time [seconds]', 'Interpreter', 'Latex');
 xlabel('Number of cells on the side of the grid','Interpreter', 'Latex');
-legend('80x4 cores', 'Location','Best');
+legend('80x4 cores','40x4 cores', 'Location','Best');
 
 part = [100 1000 10000 100000 1000000 10000000 100000000 1000000000];
 part_time = [0.040357  0.041093 0.042062 0.043754 0.047186 0.127850 ...
     0.950324 10.089763];
 
+part_time2 = [0.038241 0.064715 0.036913 0.077978 0.043558 0.226716 ...
+    1.854492 20.256713];
+
 figure(1)
 ax4 = subplot(2,2,4);
 plot(part, part_time)
+hold on
+
+plot(part, part_time2)
 hold on
 
 grid minor
@@ -266,7 +278,7 @@ title('Execution Time ./simpar-mpi 2 20 n\_part 5','Interpreter', 'Latex');
 ylabel('Execution Time [seconds]', 'Interpreter', 'Latex');
 xlabel('Number of particles','Interpreter', 'Latex');
 set(gca, 'XScale', 'log');
-legend('80x4 cores', 'Location','Best');
+legend('80x4 cores','40x4 cores', 'Location','Best');
 
 
 
