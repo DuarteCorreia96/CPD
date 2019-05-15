@@ -2,7 +2,7 @@
 #SBATCH --job-name=Group10
 #SBATCH --output=part_%j.out
 #SBATCH --error=part_%j.err
-#SBATCH --ntasks=80
+#SBATCH --ntasks=40
 #SBATCH --cpus-per-task=4
 srun ./simpar-ompi 2 20 100 5
 srun ./simpar-ompi 2 20 1000 5

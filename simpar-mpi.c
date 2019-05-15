@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <omp.h>
 #include <mpi.h>
 
 #define RND0_1 ((double) random() / ((long long) 1 << 31))
@@ -14,16 +15,28 @@ typedef struct particle {
 
 } particle_t;
 
-void init_particles(long seed, long ncside, long long n_part, particle_t *par, int rank){
+void init_particles(long seed, long ncside, long long n_part, particle_t *par, int nnodes, int rank){
 
-    long long i;
-    double trash;
+    long long i, j;
     srandom(seed);
 
-    for(i = 0; i < rank * n_part; i++)
-        trash = random();
+    long long n_part_id = n_part / nnodes;
+    long long rest = n_part % nnodes;
 
-    for(i = 0; i < n_part; i++){
+    for(i = 0; i < rest && i < rank; i++){
+        for (j = 0; j < (n_part_id + 1) * 5; j++)
+            random();
+    }
+
+    for(i = rest; i < rank; i++){
+        for (j = 0; j < n_part_id * 5; j++)
+            random();
+    }
+
+    if(rank < rest)
+        n_part_id++;
+
+    for(i = 0; i < n_part_id; i++){
 
         par[i].x = RND0_1;
         par[i].y = RND0_1;
@@ -37,7 +50,7 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par, i
 double
 check_limits(double position){
 
-    if(position < 0)
+    if(position < 0) 
         position += 1;
 
     else if(position > 1)
@@ -46,7 +59,7 @@ check_limits(double position){
     return position;
 }
 
-int
+int 
 main(int argc, char *argv[]){
 
     if(argc != 5){
@@ -54,116 +67,119 @@ main(int argc, char *argv[]){
         return 0;
     }
 
-    long seed, ncside,  iterations;
-    long long n_part, pos;
-
     long x, y;
+    long seed, ncside, iterations;
+    long long n_part, i, j, k, p, pos;
     double dx, dy, aux, d2, ax, ay;
 
-    int id, p;
-    long long block_size;
+    int id, nnodes;
 
     MPI_Init(&argc, &argv);
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Comm_rank(MPI_COMM_WORLD, &id);
-    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    MPI_Comm_size(MPI_COMM_WORLD, &nnodes);
 
-    sscanf(argv[1], "%ld",  &seed);
-    sscanf(argv[2], "%ld",  &ncside);
-    sscanf(argv[4], "%ld",  &iterations);
+    sscanf(argv[1], "%ld", &seed);
+    sscanf(argv[2], "%ld", &ncside);
+    sscanf(argv[4], "%ld", &iterations);
     sscanf(argv[3], "%lld", &n_part);
 
-    const double epson_sqrt = sqrt(EPSLON);
     const long long cell_size = ncside * ncside;
+    const double epson_sqrt = sqrt(EPSLON);
 
     //Divide the particles along the processes
-    block_size = n_part / p;
-    if(!id){
-        block_size += n_part % p;
-    }
+    long long n_part_id = n_part / nnodes;
+    if(id < n_part % nnodes)
+        n_part_id++;
 
-    //printf("Id: %d \t block_size: %lld \t \n", id, block_size);    
+    particle_t *par = (particle_t *)malloc(sizeof(particle_t) * n_part_id);
+    init_particles(seed, ncside, n_part, par, nnodes, id);
 
-    //Creates the particles for each proccess only
-    particle_t *par = (particle_t *)malloc(sizeof(particle_t) * block_size);
-    init_particles(seed, ncside, block_size, par, id);
+    n_part = n_part_id;
+
+    double *cell_xL, *cell_yL, *cell_mL;
+    cell_xL = (double *)malloc(sizeof(double) * cell_size);
+    cell_yL = (double *)malloc(sizeof(double) * cell_size);
+    cell_mL = (double *)malloc(sizeof(double) * cell_size);
 
     double *cell_x, *cell_y, *cell_m;
+    cell_m = (double *)malloc(sizeof(double) * cell_size);
     cell_x = (double *)malloc(sizeof(double) * cell_size);
     cell_y = (double *)malloc(sizeof(double) * cell_size);
-    cell_m = (double *)malloc(sizeof(double) * cell_size);
-
-    double *cell_x_Global, *cell_y_Global, *cell_m_Global;
-    cell_m_Global = (double *)malloc(sizeof(double) * cell_size);
-    cell_x_Global = (double *)malloc(sizeof(double) * cell_size);
-    cell_y_Global = (double *)malloc(sizeof(double) * cell_size);
 
     MPI_Barrier(MPI_COMM_WORLD);
     double t_start = MPI_Wtime();
-    for(int k = 0; k < iterations; k++){
+
+    for(k = 0; k < iterations; k++){
+
+        memset(cell_xL, 0, sizeof(double)* cell_size);
+        memset(cell_yL, 0, sizeof(double) * cell_size);
+        memset(cell_mL, 0, sizeof(double) * cell_size);
 
         memset(cell_x, 0, sizeof(double) * cell_size);
         memset(cell_y, 0, sizeof(double) * cell_size);
         memset(cell_m, 0, sizeof(double) * cell_size);
 
         // Calculate the center of mass of each cell
-        // each proccess calculates is particles
-        for (long long p = 0; p < block_size ; p++){
+        #pragma omp parallel for private(x, y, pos)
+        for (p= 0; p < n_part; p++){
 
-        x = (long) (par[p].x * ncside);
-        y = (long) (par[p].y * ncside);
-        pos = x + ncside * y;
+            x = (long)(par[p].x * ncside);
+            y = (long)(par[p].y * ncside);
+            pos = x + ncside * y;
 
-        cell_m[pos] += par[p].m;
-        cell_x[pos] += par[p].x * par[p].m;
-        cell_y[pos] += par[p].y * par[p].m;
+            cell_m[pos] += par[p].m;
+            cell_x[pos] += par[p].x * par[p].m;
+            cell_y[pos] += par[p].y * par[p].m;
         }
 
         MPI_Barrier(MPI_COMM_WORLD);
-        MPI_Allreduce(cell_m, cell_m_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(cell_x, cell_x_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(cell_y, cell_y_Global, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(cell_mL, cell_m, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(cell_xL, cell_x, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(cell_yL, cell_y, cell_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-        for (long long i = 0; i < cell_size; i++){
-            if(cell_m_Global[i] != 0){
-                cell_y_Global[i] /= cell_m_Global[i];
-                cell_x_Global[i] /= cell_m_Global[i];
+        #pragma omp parallel for
+        for (i = 0; i < cell_size; i++){
+            if(cell_m[i] != 0){
+                cell_y[i] /= cell_m[i];
+                cell_x[i] /= cell_m[i];
             }
         }
 
         // Compute the gravitational force applied to each particle
-        for (long long p = 0; p < block_size; p++){
+        #pragma omp parallel for private(i, j, p, pos, aux, d2, x, y, ax, ay , dx, dy)
+        for (p = 0; p < n_part; p ++){
 
-            x = (long) (par[p].x * ncside) - 2;
-            y = (long) (par[p].y * ncside) - 2;
+        x = (long) (par[p].x * ncside) - 2;
+        y = (long) (par[p].y * ncside) - 2;
 
-            ax = 0;
-            ay = 0;
-            for (long i = 0; i < 3; i++){
+        ax = 0;
+        ay = 0;
+        for (i = 0; i < 3; i++){
 
-                x = (x + 1) % ncside;
-                if(x == -1)
-                x = ncside - 1;
+            x = (x + 1) % ncside;
+            if(x == -1)  
+                x = ncside - 1; 
 
-                for (long j = 0; j < 3; j++){
+            for (j = 0; j < 3; j++){
 
-                    y = (y + 1) % ncside;
-                    if(y == -1)
-                        y = ncside - 1;
+                y = (y + 1) % ncside;
+                if(y == -1)  
+                    y = ncside - 1;
 
-                    pos = x + ncside * y;
-                    dx = abs(par[p].x - cell_x_Global[pos]);
-                    dy = abs(par[p].y - cell_y_Global[pos]);
+                pos = x + ncside * y;
+                dx = abs(par[p].x - cell_x[pos]);
+                dy = abs(par[p].y - cell_y[pos]);
 
-                    d2 = dx*dx + dy*dy;
-                    if(d2 < epson_sqrt)
-                        continue;
+                d2 = dx*dx + dy*dy;
+                if(d2 < epson_sqrt) 
+                    continue;
 
-                    aux = cell_m_Global[pos] / d2 / (dx + dy);
-                    ax += aux * dx;
-                    ay += aux * dy;
-                }
+                aux = cell_m[pos] / d2 / (dx + dy);
+                ax += aux * dx;
+                ay += aux * dy;
+            }
         }
 
         ax *= G;
@@ -179,27 +195,26 @@ main(int argc, char *argv[]){
         par[p].vx += ax;
         par[p].vy += ay;
         }
-    }
-
     
-    double x_total = 0, y_total = 0, m_total = 0;
-    for (long long i = 0; i < block_size; i++){
-
-        x = (long) (par[i].x * ncside);
-        y = (long) (par[i].y * ncside);
-
-        m_total += par[i].m;
-        x_total += par[i].x * par[i].m;
-        y_total += par[i].y * par[i].m;
     }
 
+    double x_total = 0, y_total = 0, m_total = 0;
     double x_total_Global = 0, y_total_Global = 0, m_total_Global = 0;
 
+    #pragma omp parallel for reduction(+:m_total, x_total, y_total)
+    for (i = 0; i < n_part; i++){
+
+        m_total += par[i].m;
+        x_total += par[i].x * par[i].m; 
+        y_total += par[i].y * par[i].m;  
+    }
+
+   
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Reduce(&m_total, &m_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&x_total, &x_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&y_total, &y_total_Global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-
+    
     if(!id){
         printf("%.2f %.2f \n", par[0].x, par[0].y);
         printf("%.2f %.2f \n", x_total_Global / m_total_Global, y_total_Global / m_total_Global);
@@ -209,18 +224,17 @@ main(int argc, char *argv[]){
     double t_end = MPI_Wtime();
 
     if (!id){
-        printf("Time elapsed with MPI clock = %f\n", t_end - t_start);
+        //printf("Time elapsed with MPI clock = %f\n", t_end - t_start);
     }
 
     free(par);
     free(cell_x);
     free(cell_y);
     free(cell_m);
-    free(cell_m_Global);
-    free(cell_y_Global);
-    free(cell_x_Global);
+    free(cell_mL);
+    free(cell_yL);
+    free(cell_xL);
 
     MPI_Finalize();
     return 0;
 }
-
